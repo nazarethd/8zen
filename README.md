@@ -1,4 +1,4 @@
-# Агар
+# 8zen
 
 Трекер задач на матрице Эйзенхауэра. Задача — кружок на полотне: он растёт, пока
 её не выполняют, и тем быстрее, чем важнее и срочнее квадрант, в котором он лежит.
@@ -20,16 +20,16 @@ python3 -m http.server 8000
 ```bash
 git init
 git add .
-git commit -m "Агар: первая версия"
+git commit -m "8zen: первая версия"
 git branch -M main
-git remote add origin git@github.com:ВАШ_ЛОГИН/agar.git
+git remote add origin git@github.com:ВАШ_ЛОГИН/8zen.git
 git push -u origin main
 ```
 
 Дальше в репозитории: **Settings → Pages → Build and deployment → Source: Deploy from
 a branch → Branch: `main` / `/ (root)` → Save.**
 
-Через минуту страница будет доступна по адресу `https://ВАШ_ЛОГИН.github.io/agar/`.
+Через минуту страница будет доступна по адресу `https://ВАШ_ЛОГИН.github.io/8zen/`.
 Каждый следующий `git push` в `main` обновляет её автоматически.
 
 Свой домен добавляется там же, в **Settings → Pages → Custom domain**.
