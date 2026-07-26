@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Агар — матрица Эйзенхауэра</title>
+<meta name="description" content="Трекер задач: задачи растут, пока их не выполняют.">
+<meta name="theme-color" content="#E9EDE6">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --medium:#E9EDE6;
+  --medium-2:#DFE5DB;
+  --ink:#16211B;
+  --ink-soft:#5A6A61;
+  --rule:#C6D0C4;
+  --line:#9FAE9C;
+  --panel:#F4F6F1;
+  --shadow:0 1px 0 rgba(22,33,27,.06), 0 12px 34px -18px rgba(22,33,27,.5);
+  --edge:rgba(22,33,27,.14);
+}
+:root[data-theme="dark"]{
+  --medium:#101815;
+  --medium-2:#16201C;
+  --ink:#E4EBE3;
+  --ink-soft:#8A9A90;
+  --rule:#243029;
+  --line:#3A4A41;
+  --panel:#18211D;
+  --shadow:0 1px 0 rgba(0,0,0,.4), 0 12px 34px -18px rgba(0,0,0,.9);
+  --edge:rgba(228,235,227,.16);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--medium);
+  color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:none;padding:0}
+
+/* ---------- каркас ---------- */
+.app{display:flex;flex-direction:column;height:100dvh}
+
+.bar{
+  display:flex;align-items:baseline;gap:18px;
+  padding:14px 20px 12px;
+  border-bottom:1px solid var(--rule);
+  background:var(--medium);
+  z-index:5;
+}
+.mark{display:flex;flex-direction:column;line-height:1}
+.mark .eyebrow{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--ink-soft);margin-bottom:5px;
+}
+.mark h1{
+  margin:0;font-family:Spectral,Georgia,serif;font-weight:600;
+  font-size:23px;letter-spacing:-.01em;
+}
+.readout{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-soft);
+  letter-spacing:.02em;white-space:nowrap;
+}
+.readout b{color:var(--ink);font-weight:500}
+.bar .spacer{flex:1}
+.btn{
+  font-size:12.5px;padding:7px 13px;border:1px solid var(--edge);border-radius:999px;
+  background:var(--panel);transition:border-color .15s,transform .1s;
+}
+.btn:hover{border-color:var(--line)}
+.btn:active{transform:translateY(1px)}
+.btn.solid{background:var(--ink);color:var(--medium);border-color:var(--ink)}
+.btn:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{
+  outline:2px solid var(--line);outline-offset:2px;
+}
+
+.stage{position:relative;flex:1;min-height:0;display:flex}
+#plate{flex:1;display:block;touch-action:none}
+
+/* ---------- подсказка при наведении ---------- */
+.tip{
+  position:absolute;pointer-events:none;max-width:230px;
+  padding:8px 11px;border-radius:10px;border:1px solid var(--edge);
+  background:var(--panel);box-shadow:var(--shadow);
+  font-size:12.5px;line-height:1.35;opacity:0;transform:translateY(3px);
+  transition:opacity .12s,transform .12s;z-index:6;
+}
+.tip.on{opacity:1;transform:none}
+.tip .meta{
+  display:block;margin-top:5px;font-family:"IBM Plex Mono",monospace;
+  font-size:10px;letter-spacing:.06em;color:var(--ink-soft);text-transform:uppercase;
+}
+
+/* ---------- панели ---------- */
+.panel{
+  position:absolute;top:0;bottom:0;width:300px;background:var(--panel);
+  border-left:1px solid var(--rule);box-shadow:var(--shadow);
+  display:flex;flex-direction:column;z-index:7;
+  transition:transform .22s cubic-bezier(.4,.1,.2,1);
+}
+#inspector{right:0;transform:translateX(101%)}
+#inspector.on{transform:none}
+#settings{left:0;right:auto;border-left:none;border-right:1px solid var(--rule);
+  transform:translateX(-101%);width:318px}
+#settings.on{transform:none}
+
+.panel header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:13px 16px;border-bottom:1px solid var(--rule);
+}
+.panel header h2{
+  margin:0;font-family:Spectral,Georgia,serif;font-weight:600;font-size:16px;
+}
+.panel .body{padding:16px;overflow-y:auto;flex:1}
+.close{font-family:"IBM Plex Mono",monospace;font-size:16px;line-height:1;color:var(--ink-soft);padding:4px 6px}
+.close:hover{color:var(--ink)}
+
+label.field{display:block;margin-bottom:16px}
+label.field > span{
+  display:block;font-family:"IBM Plex Mono",monospace;font-size:9.5px;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:7px;
+}
+textarea#text{
+  width:100%;min-height:104px;resize:vertical;padding:10px 11px;
+  border:1px solid var(--edge);border-radius:9px;background:var(--medium);
+  font-size:14px;line-height:1.45;
+}
+select,input[type=text]{
+  width:100%;padding:7px 9px;border:1px solid var(--edge);border-radius:8px;
+  background:var(--medium);font-size:13px;
+}
+input[type=range]{width:100%;accent-color:var(--line)}
+input[type=checkbox]{accent-color:var(--line);width:15px;height:15px}
+
+.swatches{display:flex;flex-wrap:wrap;gap:8px}
+.sw{
+  width:26px;height:26px;border-radius:50%;border:2px solid transparent;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.18);
+}
+.sw[aria-pressed="true"]{border-color:var(--ink);transform:scale(1.06)}
+
+.stats{
+  display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);
+  border:1px solid var(--rule);border-radius:9px;overflow:hidden;margin-bottom:16px;
+}
+.stats div{background:var(--panel);padding:9px 10px}
+.stats dt{
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-soft);margin:0 0 4px;
+}
+.stats dd{margin:0;font-size:14px;font-variant-numeric:tabular-nums}
+
+.actions{display:flex;gap:8px;margin-top:4px}
+.actions .btn{flex:1;text-align:center}
+
+.group{margin-bottom:22px}
+.group > h3{
+  margin:0 0 12px;font-family:"IBM Plex Mono",monospace;font-size:9.5px;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft);
+  padding-bottom:7px;border-bottom:1px solid var(--rule);
+}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px}
+.row > span{font-size:13px}
+.row .val{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-soft);
+  min-width:52px;text-align:right;font-variant-numeric:tabular-nums;
+}
+.slider{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-bottom:6px}
+.slider-label{font-size:13px;margin-bottom:2px;display:flex;align-items:center;gap:7px}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.seg{display:flex;border:1px solid var(--edge);border-radius:999px;overflow:hidden}
+.seg button{flex:1;padding:6px 4px;font-size:12px;color:var(--ink-soft)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--medium)}
+.hint{font-size:11.5px;line-height:1.5;color:var(--ink-soft);margin:-4px 0 14px}
+
+@media (max-width:760px){
+  .panel{width:100%;top:auto;height:64dvh;border-left:none;border-top:1px solid var(--rule);border-radius:16px 16px 0 0}
+  #inspector,#settings{transform:translateY(101%);width:100%}
+  #inspector.on,#settings.on{transform:none}
+  .bar{gap:12px;padding:11px 14px}
+  .readout{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:.01ms !important}
+}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <div class="bar">
+    <div class="mark">
+      <span class="eyebrow">матрица Эйзенхауэра</span>
+      <h1>Агар</h1>
+    </div>
+    <div class="readout" id="readout"></div>
+    <div class="spacer"></div>
+    <button class="btn" id="openSettings">Настройки</button>
+    <button class="btn solid" id="addBtn">Посадить задачу</button>
+  </div>
+
+  <div class="stage">
+    <canvas id="plate"></canvas>
+    <div class="tip" id="tip"></div>
+
+    <aside class="panel" id="inspector" aria-label="Задача">
+      <header>
+        <h2>Задача</h2>
+        <button class="close" id="closeInspector" aria-label="Закрыть">✕</button>
+      </header>
+      <div class="body">
+        <label class="field">
+          <span>Текст</span>
+          <textarea id="text" placeholder="Что нужно сделать"></textarea>
+        </label>
+        <dl class="stats">
+          <div><dt>Квадрант</dt><dd id="sQuad">—</dd></div>
+          <div><dt>Растёт</dt><dd id="sRate">—</dd></div>
+          <div><dt>Без движения</dt><dd id="sAge">—</dd></div>
+          <div><dt>Размер</dt><dd id="sSize">—</dd></div>
+        </dl>
+        <label class="field">
+          <span>Цвет</span>
+          <div class="swatches" id="swatches"></div>
+        </label>
+        <div class="actions">
+          <button class="btn solid" id="doneBtn">Готово</button>
+          <button class="btn" id="delBtn">Удалить</button>
+        </div>
+      </div>
+    </aside>
+
+    <aside class="panel" id="settings" aria-label="Настройки">
+      <header>
+        <h2>Настройки</h2>
+        <button class="close" id="closeSettings" aria-label="Закрыть">✕</button>
+      </header>
+      <div class="body">
+        <div class="group">
+          <h3>Среда</h3>
+          <div class="row"><span>Освещение</span>
+            <div class="seg" id="themeSeg" style="max-width:180px">
+              <button data-v="light">Светлое поле</button>
+              <button data-v="dark">Тёмное поле</button>
+            </div>
+          </div>
+          <div class="row"><span>Сетка</span><input type="checkbox" id="gridChk"></div>
+          <div class="row"><span>Кольца возраста</span><input type="checkbox" id="ringsChk"></div>
+          <div class="row"><span>Подписи на кружках</span>
+            <select id="labelsSel" style="max-width:150px">
+              <option value="always">Всегда</option>
+              <option value="hover">При наведении</option>
+              <option value="never">Никогда</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>Время</h3>
+          <div class="row"><span>Один день длится</span>
+            <select id="clockSel" style="max-width:150px">
+              <option value="86400000">сутки (реально)</option>
+              <option value="3600000">час</option>
+              <option value="60000">минуту</option>
+              <option value="10000">10 секунд</option>
+            </select>
+          </div>
+          <p class="hint">Ускорение только для наблюдения за ростом. Рост продолжается и пока вкладка закрыта.</p>
+        </div>
+
+        <div class="group">
+          <h3>Скорость роста, пикселей в день</h3>
+          <div id="rateSliders"></div>
+        </div>
+
+        <div class="group">
+          <h3>Кружки</h3>
+          <div class="slider-label">Начальный размер <span class="val" id="baseVal"></span></div>
+          <input type="range" id="baseR" min="10" max="40" step="1">
+          <div class="slider-label" style="margin-top:12px">Предел роста <span class="val" id="maxVal"></span></div>
+          <input type="range" id="maxR" min="50" max="170" step="1">
+        </div>
+
+        <div class="group">
+          <h3>Столкновения</h3>
+          <div class="row"><span>Кружки расталкиваются</span><input type="checkbox" id="collChk"></div>
+          <div class="slider-label">Зазор между ними <span class="val" id="gapVal"></span></div>
+          <input type="range" id="gap" min="0" max="24" step="1">
+        </div>
+
+        <div class="group">
+          <h3>Названия квадрантов</h3>
+          <div id="quadNames"></div>
+        </div>
+
+        <div class="group">
+          <h3>Данные</h3>
+          <button class="btn" id="resetBtn" style="width:100%">Очистить среду</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+const DAY = 86400000;
+const clone = o => JSON.parse(JSON.stringify(o));
+
+// видимый отчёт об ошибке — чтобы не искать её в консоли
+function showError(msg){
+  let bar = document.getElementById('errbar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'errbar';
+    bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99;padding:9px 14px;'
+      + 'background:#C2413B;color:#fff;font:12px/1.4 "IBM Plex Mono",monospace;white-space:pre-wrap';
+    document.body.appendChild(bar);
+  }
+  bar.textContent = 'Сбой: ' + msg;
+}
+addEventListener('error', e => showError(e.message + ' @ ' + (e.lineno || '?')));
+addEventListener('unhandledrejection', e => showError(String(e.reason)));
+
+/* ---------- палитра колоний ---------- */
+const PALETTE = [
+  '#C2413B','#D2802A','#8A8F24','#4E8A3E','#2E7D86',
+  '#3B6BB0','#6B4FA3','#B04278','#6E6A62','#2F3A34'
+];
+
+/* ---------- квадранты ---------- */
+const QUADS = [
+  {key:'plan',  col:0, row:0, name:'Планировать',    rate:7},
+  {key:'now',   col:1, row:0, name:'Сделать сейчас', rate:16},
+  {key:'drop',  col:0, row:1, name:'Отбросить',      rate:3},
+  {key:'deleg', col:1, row:1, name:'Делегировать',   rate:11}
+];
+
+const DEFAULTS = {
+  theme:'light', grid:true, rings:true, labels:'always',
+  clock:60000, baseR:20, maxR:110, collisions:true, gap:6,
+  rates:{plan:7, now:16, drop:3, deleg:11},
+  names:{plan:'Планировать', now:'Сделать сейчас', drop:'Отбросить', deleg:'Делегировать'}
+};
+
+let S = clone(DEFAULTS);
+let tasks = [];
+let closedCount = 0;
+let selected = null, hovered = null, drag = null, dragMoved = false;
+const dragOff = {x:0, y:0}, dragStart = {x:0, y:0};
+
+/* ---------- хранилище ---------- */
+const KEY = 'agar:v1';
+
+// хранилище: внутри артефакта — window.storage, на своём домене — localStorage
+const store = (() => {
+  const w = window.storage;
+  if(w && typeof w.get === 'function' && typeof w.set === 'function'){
+    return {
+      async get(k){ try{ const r = await w.get(k); return r && r.value; }catch(e){ return null; } },
+      async set(k, v){ try{ await w.set(k, v); }catch(e){} }
+    };
+  }
+  try{
+    localStorage.setItem('agar:probe', '1');
+    localStorage.removeItem('agar:probe');
+    return {
+      async get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+      async set(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+    };
+  }catch(e){}
+  return { async get(){ return null; }, async set(){} };   // приватный режим — только память
+})();
+
+let saveTimer = null;
+async function save(){
+  const slim = tasks.map(t => ({id:t.id, text:t.text, x:t.x, y:t.y, r:t.r,
+    age:t.age, color:t.color, q:t.q}));
+  await store.set(KEY, JSON.stringify({v:1, settings:S, tasks:slim, closedCount, savedAt:Date.now()}));
+}
+function scheduleSave(){ clearTimeout(saveTimer); saveTimer = setTimeout(save, 700); }
+
+async function load(){
+  const raw = await store.get(KEY);
+  if(!raw) return false;
+  try{
+    const d = JSON.parse(raw);
+    S = Object.assign(clone(DEFAULTS), d.settings || {});
+    S.rates = Object.assign({}, DEFAULTS.rates, (d.settings||{}).rates || {});
+    S.names = Object.assign({}, DEFAULTS.names, (d.settings||{}).names || {});
+    tasks = (d.tasks || []).map(t => ({...t}));
+    closedCount = d.closedCount || 0;
+    // рост за время, пока приложение было закрыто
+    const gone = Math.min(Date.now() - (d.savedAt || Date.now()), DAY * 400);
+    const days = Math.min(gone / S.clock, 400);
+    if(days > 0) tasks.forEach(t => {
+      const rate = S.rates[t.q] ?? 6;
+      t.age += days;
+      t.r = Math.min(S.maxR, t.r + rate * days);
+    });
+    return tasks.length > 0;
+  }catch(e){ return false; }
+}
+
+/* ---------- холст ---------- */
+const cv = document.getElementById('plate');
+const ctx = cv.getContext('2d');
+let W = 0, H = 0, cx = 0, cy = 0;
+const PAD = 14;
+let C = {};
+
+function readColors(){
+  const cs = getComputedStyle(document.documentElement);
+  const g = n => cs.getPropertyValue(n).trim();
+  C = {medium:g('--medium'), medium2:g('--medium-2'), ink:g('--ink'),
+       inkSoft:g('--ink-soft'), rule:g('--rule'), line:g('--line')};
+}
+
+function resize(){
+  const r = cv.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const nw = Math.max(320, Math.round(r.width)), nh = Math.max(260, Math.round(r.height));
+  if(nw === W && nh === H) return;              // без изменений — выходим
+  if(W && H){ const sx = nw/W, sy = nh/H; tasks.forEach(t => {t.x *= sx; t.y *= sy;}); }
+  W = nw; H = nh; cx = W/2; cy = H/2;
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+let roPending = false;
+new ResizeObserver(() => {                       // отложенный вызов гасит цикл наблюдателя
+  if(roPending) return;
+  roPending = true;
+  requestAnimationFrame(() => { roPending = false; resize(); });
+}).observe(cv);
+
+/* ---------- геометрия ---------- */
+function quadAt(x, y){
+  const col = x < cx ? 0 : 1, row = y < cy ? 0 : 1;
+  return QUADS.find(q => q.col === col && q.row === row);
+}
+function quadName(k){ return S.names[k] || k; }
+function hitTest(x, y){
+  for(let i = tasks.length - 1; i >= 0; i--){
+    const t = tasks[i];
+    if((x-t.x)**2 + (y-t.y)**2 <= t.r*t.r) return t;
+  }
+  return null;
+}
+function rgba(hex, a){
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;
+}
+function shade(hex, k){
+  const n = parseInt(hex.slice(1), 16);
+  const f = v => Math.max(0, Math.min(255, Math.round(v*k)));
+  return `rgb(${f(n>>16&255)},${f(n>>8&255)},${f(n&255)})`;
+}
+
+/* ---------- задачи ---------- */
+function addTask(x, y, text){
+  const t = {
+    id: Math.random().toString(36).slice(2, 9),
+    text: text || '',
+    x, y, r: S.baseR, age: 0,
+    color: PALETTE[tasks.length % PALETTE.length],
+    q: quadAt(x, y).key
+  };
+  tasks.push(t);
+  select(t);
+  scheduleSave();
+  return t;
+}
+function removeTask(t, closed){
+  const i = tasks.indexOf(t);
+  if(i > -1) tasks.splice(i, 1);
+  if(closed) closedCount++;
+  if(selected === t) select(null);
+  scheduleSave();
+}
+
+/* ---------- физика ---------- */
+function clampBounds(t){
+  const m = PAD + t.r;
+  t.x = Math.max(m, Math.min(W - m, t.x));
+  t.y = Math.max(m, Math.min(H - m, t.y));
+}
+function resolveCollisions(){
+  if(!S.collisions){ tasks.forEach(clampBounds); return; }
+  for(let it = 0; it < 4; it++){
+    for(let i = 0; i < tasks.length; i++){
+      for(let j = i+1; j < tasks.length; j++){
+        const a = tasks[i], b = tasks[j];
+        let dx = b.x - a.x, dy = b.y - a.y;
+        let d = Math.hypot(dx, dy);
+        const min = a.r + b.r + S.gap;
+        if(d === 0){ dx = Math.random()-0.5; dy = Math.random()-0.5; d = 0.001; }
+        if(d < min){
+          const nx = dx/d, ny = dy/d, over = min - d;
+          const ia = (a === drag) ? 0 : 1/(a.r*a.r);
+          const ib = (b === drag) ? 0 : 1/(b.r*b.r);
+          const tot = ia + ib;
+          if(tot === 0) continue;
+          a.x -= nx*over*(ia/tot); a.y -= ny*over*(ia/tot);
+          b.x += nx*over*(ib/tot); b.y += ny*over*(ib/tot);
+        }
+      }
+    }
+    tasks.forEach(t => { if(t !== drag) clampBounds(t); });
+  }
+  if(drag) clampBounds(drag);
+}
+
+/* ---------- отрисовка ---------- */
+function drawPlate(){
+  ctx.fillStyle = C.medium;
+  ctx.fillRect(0, 0, W, H);
+
+  // лёгкая заливка квадрантов по интенсивности роста
+  const maxRate = Math.max(1, ...Object.values(S.rates));
+  const tint = S.theme === 'dark' ? '#E4EBE3' : '#16211B';
+  QUADS.forEach(q => {
+    const w = W/2, h = H/2;
+    ctx.fillStyle = rgba(tint, 0.012 + 0.032*(S.rates[q.key]/maxRate));
+    ctx.fillRect(q.col*w, q.row*h, w, h);
+  });
+
+  if(S.grid){
+    ctx.fillStyle = C.rule;
+    for(let x = 20; x < W; x += 20) for(let y = 20; y < H; y += 20) ctx.fillRect(x, y, 1, 1);
+  }
+
+  ctx.strokeStyle = C.line;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(Math.round(cx)+.5, 0); ctx.lineTo(Math.round(cx)+.5, H);
+  ctx.moveTo(0, Math.round(cy)+.5); ctx.lineTo(W, Math.round(cy)+.5);
+  ctx.stroke();
+
+  // названия квадрантов
+  ctx.font = '500 11px "IBM Plex Mono", monospace';
+  ctx.fillStyle = C.inkSoft;
+  QUADS.forEach(q => {
+    const x = q.col === 0 ? 16 : W - 16;
+    const y = q.row === 0 ? 24 : H - 14;
+    ctx.textAlign = q.col === 0 ? 'left' : 'right';
+    ctx.fillText(quadName(q.key).toUpperCase(), x, y);
+  });
+
+  // оси
+  ctx.font = '400 10px "IBM Plex Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('С Р О Ч Н О →', W - 96, cy - 10);
+  ctx.save();
+  ctx.translate(cx + 12, 78);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('← В А Ж Н О', 0, 0);
+  ctx.restore();
+
+  if(!tasks.length){
+    ctx.font = '400 13px "IBM Plex Sans", sans-serif';
+    ctx.fillStyle = C.inkSoft;
+    ctx.textAlign = 'center';
+    ctx.fillText('Дважды кликните по среде, чтобы посадить задачу', cx, cy + H/4);
+  }
+}
+
+function drawTask(t, time){
+  const over = t.r >= S.maxR - 0.5;
+  const g = ctx.createRadialGradient(t.x - t.r*0.3, t.y - t.r*0.35, t.r*0.1, t.x, t.y, t.r);
+  g.addColorStop(0, rgba(t.color, 0.95));
+  g.addColorStop(1, rgba(t.color, 0.72));
+
+  if(over && !reduceMotion){
+    const p = 0.5 + 0.5*Math.sin(time/420);
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, t.r + 4 + 4*p, 0, 7);
+    ctx.fillStyle = rgba(t.color, 0.10 + 0.08*(1-p));
+    ctx.fill();
+  }
+
+  ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, 7);
+  ctx.fillStyle = g; ctx.fill();
+  ctx.lineWidth = t === hovered || t === selected ? 2 : 1;
+  ctx.strokeStyle = shade(t.color, t === hovered ? 0.6 : 0.78);
+  ctx.stroke();
+
+  // кольца возраста: одно кольцо — один прожитый день
+  if(S.rings){
+    const rings = Math.min(Math.floor(t.age), 9);
+    ctx.strokeStyle = rgba('#FFFFFF', 0.16);
+    ctx.lineWidth = 1;
+    for(let i = 1; i <= rings; i++){
+      const rr = t.r * (i/(rings+1));
+      if(rr < 3) continue;
+      ctx.beginPath(); ctx.arc(t.x, t.y, rr, 0, 7); ctx.stroke();
+    }
+  }
+
+  if(selected === t){
+    ctx.setLineDash([3, 4]);
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(t.x, t.y, t.r + 7, 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  const showLabel = S.labels === 'always' || (S.labels === 'hover' && t === hovered);
+  if(showLabel && t.text && t.r > 22){
+    ctx.font = '500 12px "IBM Plex Sans", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const words = t.text.split(/\s+/);
+    const maxW = t.r * 1.55, lines = [];
+    let line = '';
+    for(const w of words){
+      const test = line ? line + ' ' + w : w;
+      if(ctx.measureText(test).width > maxW && line){ lines.push(line); line = w; }
+      else line = test;
+      if(lines.length === 3) break;
+    }
+    if(lines.length < 3 && line) lines.push(line);
+    ctx.fillStyle = 'rgba(255,255,255,.94)';
+    const lh = 14, y0 = t.y - (lines.length-1)*lh/2;
+    lines.forEach((l, i) => {
+      let s = l;
+      if(i === 2 && ctx.measureText(s).width > maxW){
+        while(s.length > 1 && ctx.measureText(s + '…').width > maxW) s = s.slice(0, -1);
+        s += '…';
+      }
+      ctx.fillText(s, t.x, y0 + i*lh);
+    });
+    ctx.textBaseline = 'alphabetic';
+  }
+}
+
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(now - last, 120); last = now;
+  const days = dt / S.clock;
+
+  tasks.forEach(t => {
+    t.q = quadAt(t.x, t.y).key;
+    if(t !== drag){
+      t.age += days;
+      t.r = Math.min(S.maxR, Math.max(S.baseR, t.r + (S.rates[t.q] ?? 6) * days));
+    }
+  });
+  resolveCollisions();
+
+  drawPlate();
+  tasks.forEach(t => drawTask(t, now));
+  updateReadout();
+  if(selected) updateStats();
+}
+function loop(now){
+  try{ frame(now); }
+  catch(err){ showError(err.message); }
+  requestAnimationFrame(loop);
+}
+
+/* ---------- взаимодействие ---------- */
+const tip = document.getElementById('tip');
+function pos(e){
+  const r = cv.getBoundingClientRect();
+  return {x: e.clientX - r.left, y: e.clientY - r.top};
+}
+cv.addEventListener('pointerdown', e => {
+  const p = pos(e);
+  const t = hitTest(p.x, p.y);
+  if(t){
+    drag = t; dragMoved = false;
+    dragOff.x = p.x - t.x; dragOff.y = p.y - t.y;
+    dragStart.x = p.x; dragStart.y = p.y;
+    tasks.splice(tasks.indexOf(t), 1); tasks.push(t);
+    try{ cv.setPointerCapture(e.pointerId); }catch(err){}
+  } else if(selected){ select(null); }
+});
+cv.addEventListener('pointermove', e => {
+  const p = pos(e);
+  if(drag){
+    if(Math.abs(p.x - dragStart.x) + Math.abs(p.y - dragStart.y) > 4) dragMoved = true;
+    drag.x = p.x - dragOff.x; drag.y = p.y - dragOff.y;
+    clampBounds(drag);
+    tip.classList.remove('on');
+    return;
+  }
+  const t = hitTest(p.x, p.y);
+  hovered = t;
+  cv.style.cursor = t ? 'grab' : 'default';
+  if(t){
+    const q = QUADS.find(q => q.key === t.q);
+    tip.innerHTML = `${escapeHtml(t.text || 'Без описания')}
+      <span class="meta">${quadName(q.key)} · +${S.rates[q.key]} пикс/день · ${fmtAge(t.age)}</span>`;
+    tip.classList.add('on');
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.min(W - w - 8, Math.max(8, p.x + 16)) + 'px';
+    tip.style.top = Math.max(8, p.y - h - 12) + 'px';
+  } else tip.classList.remove('on');
+});
+function endDrag(){
+  if(drag){
+    if(!dragMoved) select(drag);
+    drag.q = quadAt(drag.x, drag.y).key;
+    drag = null; scheduleSave();
+  }
+}
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', endDrag);
+cv.addEventListener('pointerleave', () => { hovered = null; tip.classList.remove('on'); });
+cv.addEventListener('dblclick', e => {
+  const p = pos(e);
+  if(hitTest(p.x, p.y)) return;
+  addTask(p.x, p.y, '');
+  document.getElementById('text').focus();
+});
+
+function escapeHtml(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fmtAge(a){
+  if(a < 1) return Math.round(a*24) + ' ч без движения';
+  return Math.floor(a) + ' дн. без движения';
+}
+
+/* ---------- панель задачи ---------- */
+const insp = document.getElementById('inspector');
+const textEl = document.getElementById('text');
+const swWrap = document.getElementById('swatches');
+
+PALETTE.forEach(c => {
+  const b = document.createElement('button');
+  b.className = 'sw'; b.style.background = c; b.dataset.c = c;
+  b.setAttribute('aria-pressed', 'false');
+  b.setAttribute('aria-label', 'Цвет ' + c);
+  b.onclick = () => { if(selected){ selected.color = c; paintSwatches(); scheduleSave(); } };
+  swWrap.appendChild(b);
+});
+function paintSwatches(){
+  swWrap.querySelectorAll('.sw').forEach(b =>
+    b.setAttribute('aria-pressed', String(!!selected && b.dataset.c === selected.color)));
+}
+function select(t){
+  selected = t;
+  insp.classList.toggle('on', !!t);
+  if(t){
+    document.getElementById('settings').classList.remove('on');
+    textEl.value = t.text;
+    paintSwatches(); updateStats();
+  }
+}
+function updateStats(){
+  const t = selected; if(!t) return;
+  document.getElementById('sQuad').textContent = quadName(t.q);
+  document.getElementById('sRate').textContent = '+' + (S.rates[t.q] ?? 6) + ' пикс/день';
+  document.getElementById('sAge').textContent = t.age < 1
+    ? Math.round(t.age*24) + ' ч' : Math.floor(t.age) + ' дн.';
+  document.getElementById('sSize').textContent = Math.round(t.r*2) + ' пикс'
+    + (t.r >= S.maxR - 0.5 ? ' · предел' : '');
+}
+textEl.addEventListener('input', () => { if(selected){ selected.text = textEl.value; scheduleSave(); } });
+document.getElementById('closeInspector').onclick = () => select(null);
+document.getElementById('doneBtn').onclick = () => selected && removeTask(selected, true);
+document.getElementById('delBtn').onclick = () => selected && removeTask(selected, false);
+document.getElementById('addBtn').onclick = () => {
+  addTask(W*0.25 + (Math.random()-0.5)*60, H*0.25 + (Math.random()-0.5)*60, '');
+  textEl.focus();
+};
+addEventListener('keydown', e => {
+  if(e.key === 'Escape'){ select(null); document.getElementById('settings').classList.remove('on'); }
+});
+
+let lastReadout = '';
+const readoutEl = document.getElementById('readout');
+function updateReadout(){
+  const biggest = tasks.reduce((m, t) => t.r > (m ? m.r : 0) ? t : m, null);
+  const s = `в среде: <b>${tasks.length}</b> · закрыто: <b>${closedCount}</b>` +
+    (biggest ? ` · крупнейшая: <b>${Math.round(biggest.r*2)}</b> пикс` : '');
+  if(s !== lastReadout){ readoutEl.innerHTML = s; lastReadout = s; }
+}
+
+/* ---------- настройки ---------- */
+const setPanel = document.getElementById('settings');
+document.getElementById('openSettings').onclick = () => {
+  setPanel.classList.toggle('on'); select(null);
+};
+document.getElementById('closeSettings').onclick = () => setPanel.classList.remove('on');
+
+// ползунки скорости роста
+const rateWrap = document.getElementById('rateSliders');
+QUADS.forEach((q, i) => {
+  const div = document.createElement('div');
+  div.style.marginBottom = '14px';
+  div.innerHTML = `<div class="slider-label">
+      <span class="dot" style="background:${['#4E8A3E','#C2413B','#6E6A62','#D2802A'][i]}"></span>
+      <span data-name="${q.key}">${quadName(q.key)}</span>
+      <span class="val" style="margin-left:auto" id="rv-${q.key}"></span>
+    </div>
+    <input type="range" min="0" max="40" step="1" id="r-${q.key}">`;
+  rateWrap.appendChild(div);
+  const inp = div.querySelector('input');
+  inp.addEventListener('input', () => {
+    S.rates[q.key] = +inp.value;
+    document.getElementById('rv-' + q.key).textContent = inp.value;
+    scheduleSave();
+  });
+});
+
+// переименование квадрантов
+const nameWrap = document.getElementById('quadNames');
+QUADS.forEach(q => {
+  const l = document.createElement('label');
+  l.className = 'field';
+  l.innerHTML = `<span>${q.col===0?'Левый':'Правый'} ${q.row===0?'верхний':'нижний'}</span>
+    <input type="text" id="n-${q.key}">`;
+  nameWrap.appendChild(l);
+  const inp = l.querySelector('input');
+  inp.addEventListener('input', () => {
+    S.names[q.key] = inp.value;
+    const lbl = rateWrap.querySelector(`[data-name="${q.key}"]`);
+    if(lbl) lbl.textContent = inp.value;
+    scheduleSave();
+  });
+});
+
+const themeSeg = document.getElementById('themeSeg');
+themeSeg.querySelectorAll('button').forEach(b => b.onclick = () => {
+  S.theme = b.dataset.v; applySettings(); scheduleSave();
+});
+
+function bind(id, prop, transform = v => v, after){
+  const el = document.getElementById(id);
+  const ev = el.type === 'checkbox' ? 'change' : 'input';
+  el.addEventListener(ev, () => {
+    S[prop] = el.type === 'checkbox' ? el.checked : transform(el.value);
+    if(after) after();
+    scheduleSave();
+  });
+  return el;
+}
+bind('gridChk', 'grid');
+bind('ringsChk', 'rings');
+bind('labelsSel', 'labels');
+bind('clockSel', 'clock', Number);
+bind('collChk', 'collisions');
+bind('gap', 'gap', Number, () => document.getElementById('gapVal').textContent = S.gap + ' пикс');
+bind('baseR', 'baseR', Number, () => {
+  document.getElementById('baseVal').textContent = S.baseR*2 + ' пикс';
+  if(S.maxR < S.baseR + 20){ S.maxR = S.baseR + 20; syncSettings(); }
+});
+bind('maxR', 'maxR', Number, () => document.getElementById('maxVal').textContent = S.maxR*2 + ' пикс');
+
+document.getElementById('resetBtn').onclick = () => {
+  tasks = []; closedCount = 0; select(null); save();
+};
+
+function syncSettings(){
+  themeSeg.querySelectorAll('button').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.v === S.theme)));
+  document.getElementById('gridChk').checked = S.grid;
+  document.getElementById('ringsChk').checked = S.rings;
+  document.getElementById('labelsSel').value = S.labels;
+  document.getElementById('clockSel').value = String(S.clock);
+  document.getElementById('collChk').checked = S.collisions;
+  const g = document.getElementById('gap'); g.value = S.gap;
+  document.getElementById('gapVal').textContent = S.gap + ' пикс';
+  const b = document.getElementById('baseR'); b.value = S.baseR;
+  document.getElementById('baseVal').textContent = S.baseR*2 + ' пикс';
+  const m = document.getElementById('maxR'); m.value = S.maxR;
+  document.getElementById('maxVal').textContent = S.maxR*2 + ' пикс';
+  QUADS.forEach(q => {
+    document.getElementById('r-' + q.key).value = S.rates[q.key];
+    document.getElementById('rv-' + q.key).textContent = S.rates[q.key];
+    document.getElementById('n-' + q.key).value = quadName(q.key);
+    const lbl = rateWrap.querySelector(`[data-name="${q.key}"]`);
+    if(lbl) lbl.textContent = quadName(q.key);
+  });
+}
+function applySettings(){
+  document.documentElement.dataset.theme = S.theme;
+  readColors();
+  syncSettings();
+}
+
+/* ---------- запуск ---------- */
+(async () => {
+  const had = await load();
+  applySettings();
+  resize();
+  if(!had && !tasks.length){
+    addTask(W*0.26, H*0.28, 'Написать план на квартал');
+    addTask(W*0.74, H*0.24, 'Ответить в тендер до пятницы');
+    addTask(W*0.72, H*0.74, 'Собрать чеки для бухгалтерии');
+    tasks[0].color = PALETTE[3]; tasks[1].color = PALETTE[0]; tasks[2].color = PALETTE[1];
+    tasks[1].age = 3; tasks[1].r = 40;
+    select(null);
+  }
+  addEventListener('visibilitychange', () => { if(document.hidden) save(); });
+  addEventListener('pagehide', save);
+  requestAnimationFrame(loop);
+})();
+
+})();
+</script>
+</body>
+</html>
